@@ -18,7 +18,15 @@ class GameEngine:
         
         self.winner = None
         self.game_state = "PLAYING"
-        self.ai_strength = 0.35  
+        self.ai_strength = 0.35
+
+        # Task 2: periodic normal -> surge -> cooldown cycle.
+        self.ai_cycle_frame = 0
+        self.ai_cycle_length = 600       # 10 seconds at 60 FPS
+        self.ai_surge_duration = 120     # 2-second high-power surge
+        self.ai_cooldown_duration = 180  # 3-second reduced-resistance cooldown
+        self.ai_surge_active = False
+        self.ai_cooldown_active = False
         
         self.font_big = pygame.font.SysFont(None, 44)
         self.font_med = pygame.font.SysFont(None, 26)
@@ -48,8 +56,28 @@ class GameEngine:
         if self.game_state != "PLAYING":
             return
 
+        # Task 2: cycle the AI through normal pressure, a short surge,
+        # and a reduced-resistance cooldown.
+        self.ai_cycle_frame = (self.ai_cycle_frame + 1) % self.ai_cycle_length
+
+        surge_start = self.ai_cycle_length - self.ai_surge_duration
+        cooldown_start = surge_start - self.ai_cooldown_duration
+
+        if self.ai_cycle_frame >= surge_start:
+            self.ai_surge_active = True
+            self.ai_cooldown_active = False
+            current_ai_strength = self.ai_strength * 2.5
+        elif self.ai_cycle_frame >= cooldown_start:
+            self.ai_surge_active = False
+            self.ai_cooldown_active = True
+            current_ai_strength = self.ai_strength * 0.35
+        else:
+            self.ai_surge_active = False
+            self.ai_cooldown_active = False
+            current_ai_strength = self.ai_strength
+
         ai_variance = random.uniform(0.3, 1.0)
-        self.arm_position += self.ai_strength * ai_variance
+        self.arm_position += current_ai_strength * ai_variance
 
         if self.stamina < self.max_stamina:
             self.stamina = min(self.max_stamina, self.stamina + 0.8)
@@ -67,6 +95,9 @@ class GameEngine:
         self.last_key = None
         self.winner = None
         self.game_state = "PLAYING"
+        self.ai_cycle_frame = 0
+        self.ai_surge_active = False
+        self.ai_cooldown_active = False
 
     def render(self, screen):
         screen.fill((25, 28, 35))
