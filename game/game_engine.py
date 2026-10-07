@@ -20,13 +20,16 @@ class GameEngine:
         self.game_state = "PLAYING"
         self.ai_strength = 0.35
 
-        # Task 2: periodic normal -> surge -> cooldown cycle.
+        # Task 2: AI normal -> surge -> cooldown cycle
         self.ai_cycle_frame = 0
         self.ai_cycle_length = 600       # 10 seconds at 60 FPS
-        self.ai_surge_duration = 120     # 2-second high-power surge
-        self.ai_cooldown_duration = 180  # 3-second reduced-resistance cooldown
+        self.ai_surge_duration = 120     # 2 seconds
+        self.ai_cooldown_duration = 180  # 3 seconds
         self.ai_surge_active = False
         self.ai_cooldown_active = False
+
+        # Task 4: counter-surge bonus
+        self.counter_surge_active = False
 
         self.font_big = pygame.font.SysFont(None, 44)
         self.font_med = pygame.font.SysFont(None, 26)
@@ -43,13 +46,31 @@ class GameEngine:
 
             if event.key == pygame.K_LEFT:
                 if self.last_key != pygame.K_LEFT:
-                    self.arm_position -= 4.2
+                    push_strength = 4.2
+
+                    # Task 4: double push strength during counter-surge
+                    if self.counter_surge_active:
+                        push_strength *= 2
+
+                    self.arm_position -= push_strength
                     self.stamina = max(0.0, self.stamina - 2.0)
                     self.last_key = pygame.K_LEFT
 
             elif event.key == pygame.K_RIGHT:
                 if self.last_key != pygame.K_RIGHT:
-                    self.arm_position -= 4.2
+
+                    # Task 4:
+                    # Pressing Right during the AI cooldown activates
+                    # the counter-surge comeback bonus.
+                    if self.ai_cooldown_active:
+                        self.counter_surge_active = True
+
+                    push_strength = 4.2
+
+                    if self.counter_surge_active:
+                        push_strength *= 2
+
+                    self.arm_position -= push_strength
                     self.stamina = max(0.0, self.stamina - 2.0)
                     self.last_key = pygame.K_RIGHT
 
@@ -57,8 +78,10 @@ class GameEngine:
         if self.game_state != "PLAYING":
             return
 
-        # Task 2: cycle the AI through normal pressure, a short surge,
-        # and a reduced-resistance cooldown.
+        # ---------------------------------------------------------
+        # Task 2: AI surge / cooldown cycle
+        # ---------------------------------------------------------
+
         self.ai_cycle_frame = (
             self.ai_cycle_frame + 1
         ) % self.ai_cycle_length
@@ -76,16 +99,21 @@ class GameEngine:
         if self.ai_cycle_frame >= surge_start:
             self.ai_surge_active = True
             self.ai_cooldown_active = False
+            self.counter_surge_active = False
+
             current_ai_strength = self.ai_strength * 2.5
 
         elif self.ai_cycle_frame >= cooldown_start:
             self.ai_surge_active = False
             self.ai_cooldown_active = True
+
             current_ai_strength = self.ai_strength * 0.35
 
         else:
             self.ai_surge_active = False
             self.ai_cooldown_active = False
+            self.counter_surge_active = False
+
             current_ai_strength = self.ai_strength
 
         ai_variance = random.uniform(0.3, 1.0)
@@ -94,11 +122,25 @@ class GameEngine:
             current_ai_strength * ai_variance
         )
 
+        # ---------------------------------------------------------
+        # Task 4: increased stamina recovery during counter-surge
+        # ---------------------------------------------------------
+
         if self.stamina < self.max_stamina:
+
+            if self.counter_surge_active:
+                recovery_rate = 1.6
+            else:
+                recovery_rate = 0.8
+
             self.stamina = min(
                 self.max_stamina,
-                self.stamina + 0.8
+                self.stamina + recovery_rate
             )
+
+        # ---------------------------------------------------------
+        # Win conditions
+        # ---------------------------------------------------------
 
         if self.arm_position <= -self.target_limit:
             self.winner = "PLAYER"
@@ -112,6 +154,7 @@ class GameEngine:
         self.arm_position = 0.0
         self.stamina = 100.0
         self.last_key = None
+
         self.winner = None
         self.game_state = "PLAYING"
 
@@ -119,6 +162,9 @@ class GameEngine:
         self.ai_cycle_frame = 0
         self.ai_surge_active = False
         self.ai_cooldown_active = False
+
+        # Reset Task 4 bonus
+        self.counter_surge_active = False
 
     def render(self, screen):
         screen.fill((25, 28, 35))
@@ -158,11 +204,7 @@ class GameEngine:
             (255, 100, 80)
         )
 
-        screen.blit(
-            player_header,
-            (60, 55)
-        )
-
+        screen.blit(player_header, (60, 55))
         screen.blit(
             computer_header,
             (self.width - 150, 55)
@@ -384,6 +426,26 @@ class GameEngine:
                     self.width // 2 -
                     exhaustion_text.get_width() // 2,
                     510
+                )
+            )
+
+        # ---------------------------------------------------------
+        # Task 4: Counter-surge indicator
+        # ---------------------------------------------------------
+
+        if self.counter_surge_active:
+            counter_text = self.font_med.render(
+                "COUNTER-SURGE! PUSH!",
+                True,
+                (80, 240, 100)
+            )
+
+            screen.blit(
+                counter_text,
+                (
+                    self.width // 2 -
+                    counter_text.get_width() // 2,
+                    540
                 )
             )
 
